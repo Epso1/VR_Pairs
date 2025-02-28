@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
@@ -13,15 +14,20 @@ public class GameManager : MonoBehaviour
     [SerializeField] float spacing = 0.5f; // Espaciado entre cartas
     [SerializeField] float initialPauseTime = 2f;
     [SerializeField] float initialShowTime = 5f;
-    [SerializeField] public AudioClip clickSound { get; private set;}
+    [SerializeField] public AudioClip clickSound;
     [SerializeField] AudioClip matchSound;
     [SerializeField] AudioClip mismatchSound;
     [SerializeField] AudioClip introMusic;
+    [SerializeField] AudioClip sceneMusic;
+    [SerializeField] AudioClip victoryMusic;
     [SerializeField] AudioSource FXAudioSource;
     [SerializeField] AudioSource musicAudioSource;
     [SerializeField] GameObject UIStart;
     [SerializeField] GameObject UIVictory;
+    [SerializeField] Text timeResultText;
     [SerializeField] GameObject UIGetReady;
+    [SerializeField] GameObject UITimer;
+    [SerializeField] Text timerText;
     [SerializeField] GameObject explosionPrefab;
     [HideInInspector] public bool playerCanClick = false;
     Sprite[] currentCards;
@@ -29,12 +35,49 @@ public class GameManager : MonoBehaviour
     Card firstFlippedCard = null;
     Card secondFlippedCard = null;
     int matchCount = 0;
+    float elapsedTime = 0f;
+    bool isTimeRunning = false;
 
 
     void Start()
     {
-        PlayMusic(introMusic, 0.5f, true);
+        UIVictory.SetActive(false);
+        UIGetReady.SetActive(false);
+        UITimer.SetActive(false);
+        if (SceneManager.GetActiveScene().buildIndex == 0) { UIStart.SetActive(true); PlayMusic(introMusic, 0.5f, true); }// Reproducir la música de introducción y activar UIStart si es el primer nivel de juego
+        else { UIStart.SetActive(true); StartGame(); }       
     }
+    private void Update()
+    {
+        if (isTimeRunning) // Si el tiempo está corriendo, actualiza el temporizador
+        {
+            elapsedTime += Time.deltaTime;
+            UpdateTimerText(elapsedTime);
+        }
+    }
+    public void StartTimer()
+    {
+        elapsedTime = 0f;
+        isTimeRunning = true;
+    }
+
+    public void StopTimer()
+    {
+        isTimeRunning = false;
+    }
+    private void UpdateTimerText(float time)
+    {
+        int minutes = Mathf.FloorToInt(time / 60);
+        int seconds = Mathf.FloorToInt(time % 60);
+        timerText.text = string.Format("{0:0}:{1:00}", minutes, seconds);
+    }
+    private void UpdateTimeResultText(float time)
+    {
+        int minutes = Mathf.FloorToInt(time / 60);
+        int seconds = Mathf.FloorToInt(time % 60);
+        timeResultText.text = "YOUR TIME: " + string.Format("{0:0}:{1:00}", minutes, seconds);
+    }
+
     void CreateDeck()
     {
         List<Sprite> selectedCards = new List<Sprite>();
@@ -110,6 +153,9 @@ public class GameManager : MonoBehaviour
         }
 
         playerCanClick = true; // Activar playerCanClick
+        UITimer.SetActive(true); // Mostrar el temporizador
+        StartTimer(); // Iniciar el temporizador
+        PlayMusic(sceneMusic, 0.5f, true);
     }
 
     public void StartGame()
@@ -139,7 +185,7 @@ public class GameManager : MonoBehaviour
     {
         yield return new WaitForSeconds(1f);
 
-        if (firstFlippedCard.frontSpriteRenderer.sprite.name == secondFlippedCard.frontSpriteRenderer.sprite.name)
+        if (firstFlippedCard.frontSpriteRenderer.sprite.name == secondFlippedCard.frontSpriteRenderer.sprite.name && firstFlippedCard != secondFlippedCard)
         {
             PlaySoundFX(matchSound, 0.5f);
             Instantiate(explosionPrefab, firstFlippedCard.transform.position, Quaternion.identity);
@@ -150,7 +196,12 @@ public class GameManager : MonoBehaviour
 
             if (matchCount == initialCards)
             {
+                StopMusic();
+                PlayMusic(victoryMusic, 0.5f, false);
+                UITimer.SetActive(false);
+                StopTimer();
                 UIVictory.SetActive(true);
+                UpdateTimeResultText(elapsedTime);
             }
         }
         else
@@ -185,9 +236,7 @@ public class GameManager : MonoBehaviour
 
     public void PlaySoundFX(AudioClip soundFX, float volume)
     {
-        FXAudioSource.Stop();
         FXAudioSource.volume = volume;
-        FXAudioSource.clip = soundFX;
-        FXAudioSource.Play();
+        FXAudioSource.PlayOneShot(soundFX);
     }
 }
